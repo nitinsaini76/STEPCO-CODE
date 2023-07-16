@@ -1,0 +1,82 @@
+#include "max6675.h"
+int SO_PIN = 4; 
+int CS_PIN = 5; 
+int SCK_PIN = 6; 
+MAX6675 temp(SCK_PIN, CS_PIN, SO_PIN);
+
+int RELAY_PIN = 2;
+
+unsigned long startTime; 
+unsigned long ovenTime; 
+int setTemperature; 
+
+int DEFAULT_TEMPERATURE = 150; 
+unsigned long DEFAULT_OVEN_TIME = 600; 
+
+void setup() {
+  pinMode(RELAY_PIN, OUTPUT);
+  Serial.begin(9600); 
+}
+
+void loop() {
+if (Serial.available() > 0) {
+    int incomingByte = Serial.read();
+    if (incomingByte == '1'){ 
+      Serial.println("Enter the time for which the oven will be on (in seconds):");
+      while(Serial.available() <=0){}      
+      ovenTime = Serial.parseInt(); 
+      
+      if (ovenTime <= 0 || ovenTime >3600 ) {
+        ovenTime = DEFAULT_OVEN_TIME;
+      }
+      Serial.print("Entered oven time (seconds): ");
+      Serial.println(ovenTime);
+    
+      Serial.println("Enter the desired temperature in Celsius:");
+       while(Serial.available() <=0){}     
+      setTemperature = Serial.parseInt();
+      if (setTemperature <= 0 || setTemperature > 250) {
+        setTemperature = DEFAULT_TEMPERATURE; 
+      }
+      Serial.print("Entered temperature (Celsius): ");
+      Serial.println(setTemperature);
+    
+      digitalWrite(RELAY_PIN, HIGH); // turn on the oven
+      startTime = millis()/1000; // storing time of the oven in seconds
+      while (1) {
+        int temperature = temp.readCelsius();
+        if (temperature == 0) {
+          Serial.println("Temperature sensor error!"); 
+          break;
+        }
+        Serial.print("Current temperature (C): "); 
+        Serial.println(temperature);          
+        delay(1000);
+        if (temperature > setTemperature) {
+          digitalWrite(RELAY_PIN, LOW); // turn off the oven 
+          Serial.println("Oven turned off due to high temperature");
+        }
+        if (temperature < setTemperature) {
+          digitalWrite(RELAY_PIN, HIGH); // turn ON  the oven if the temperature is LESSER than the set temperature BUT TIMER IS ON SO OVEN TURNED ON AGAIN
+        }
+        if (millis()/1000 - startTime > ovenTime) {
+          digitalWrite(RELAY_PIN, LOW);
+          Serial.println("Oven turned off due to timer");
+          break;
+        }
+        if (Serial.available() > 0) {
+          int command = Serial.read();
+          if (command == '0') { // turn off the oven if "0" is received from the Bluetooth module 
+            digitalWrite(RELAY_PIN, LOW);
+            Serial.println("Oven turned off");
+            break;
+          }
+        }
+      }
+    }
+    else if (incomingByte == '0') { 
+      digitalWrite(RELAY_PIN, LOW); // turn off the oven
+      Serial.println("Oven turned off");
+    }
+  }
+}
